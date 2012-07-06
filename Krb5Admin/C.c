@@ -84,7 +84,7 @@ krb5_get_kadm5_hndl(krb5_context ctx, char *dbname)
 		params.dbname = dbname;
 	}
 
-	K5BAIL(KADM5_INIT_WITH_PASSWORD(ctx, (char *)princstr, &params, &hndl));
+	K5BAIL(KADM5_INIT_WITH_PASSWORD(ctx, princstr, &params, &hndl));
 
 done:
 	if (ret)

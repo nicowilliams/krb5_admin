@@ -35,6 +35,8 @@
 #else
 #ifdef HAVE_MIT
 
+#define	HAVE_CTX_IN_KADM5	1
+
 #define	KEYBLOCK_ENCTYPE(k)	((k).enctype)
 #define	KEYBLOCK_CONTENT_LEN(k)	((k).length)
 #define	KEYBLOCK_CONTENTS(k)	((k).contents)
@@ -63,6 +65,24 @@
 #endif /* HAVE_MIT */
 #endif /* HAVE_HEIMDAL */
 
+#ifndef KRB5_WELLKNOWN_NAME
+#ifdef	KRB5_WELLKNOWN_NAMESTR
+#define	KRB5_WELLKNOWN_NAME KRB5_WELLKNOWN_NAMESTR
+#else
+#endif
+#else
+#define	KRB5_WELLKNOWN_NAME "WELLKNOWN"
+#endif
+
+#ifndef KRB5_ANON_NAME
+#ifdef	KRB5_ANONYMOUS_PRINCSTR
+#define	KRB5_ANON_NAME KRB5_ANONYMOUS_PRINCSTR
+#else
+#endif
+#else
+#define	KRB5_ANON_NAME "ANONYMOUS"
+#endif
+
 /* Continued accessor macros defined in terms of prior */
 
 #define	KEYTABENT_ENCTYPE(kte)	   KEYBLOCK_ENCTYPE(KEYTABENT_KEYBLOCK(kte))
@@ -78,8 +98,8 @@
 
 #ifdef HAVE_CTX_IN_KADM5
 #define KADM5_INIT_WITH_PASSWORD(ctx, princ, params, hndl)		\
-		kadm5_init_with_password((ctx), (princstr), NULL,	\
-		    NULL, (params), KADM5_STRUCT_VERSION,		\
+		kadm5_init_with_password((ctx), (char *)(princstr),	\
+		    NULL, NULL, (params), KADM5_STRUCT_VERSION,		\
 		    KADM5_API_VERSION_2, NULL, (hndl))
 #else
 #define KADM5_INIT_WITH_PASSWORD(ctx, princ, params, hndl)		\
@@ -126,10 +146,12 @@ char	*krb5_createprinc(krb5_context, kadm5_handle,
 			  char *);
 void	 krb5_deleteprinc(krb5_context, kadm5_handle, char *);
 
+#if 0
 krb5_error_code	krb5_init_context(krb5_context *);
 krb5_error_code	krb5_parse_name(krb5_context, const char *, krb5_principal *);
 krb5_error_code krb5_string_to_key(krb5_context, krb5_enctype, const char *,
 				   krb5_principal, krb5_keyblock *OUTPUT);
+#endif
 
 
 char 	**curve25519_pass1(krb5_context);
