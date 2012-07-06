@@ -974,6 +974,11 @@ kinit_anonymous(krb5_context ctx, char *realm, char *ccname)
 	krb5_principal		 princ = NULL;
 	int			 cred_allocated = 0;
 	char			 croakstr[2048] = "";
+#ifdef HAVE_MIT
+	krb5_creds		 creds;
+
+	memset(&creds, 0, sizeof(creds));
+#endif
 
 	if (ccname)
 		K5BAIL(krb5_cc_resolve(ctx, ccname, &ccache));
@@ -985,7 +990,11 @@ kinit_anonymous(krb5_context ctx, char *realm, char *ccname)
 	krb5_get_init_creds_opt_set_anonymous(opt, 1);
 	K5BAIL(krb5_make_principal(ctx, &princ, realm,
 	    KRB5_WELLKNOWN_NAME, KRB5_ANON_NAME, NULL));
+#ifdef HAVE_HEIMDAL
 	krb5_principal_set_type(ctx, princ, KRB5_NT_WELLKNOWN);
+#else
+	krb5_princ_type(context, princ) = KRB5_NT_WELLKNOWN;
+#endif
 	K5BAIL(krb5_get_init_creds_opt_set_pkinit(ctx, opt, princ,
 	    NULL, NULL, NULL, NULL, 4, NULL, NULL, NULL));
 
@@ -993,7 +1002,13 @@ kinit_anonymous(krb5_context ctx, char *realm, char *ccname)
 
 	K5BAIL(krb5_init_creds_init(ctx, princ, NULL, NULL, 0, opt, &ictx));
 	K5BAIL(krb5_init_creds_get(ctx, ictx));
+#ifdef HAVE_HEIMDAL
 	K5BAIL(krb5_init_creds_store(ctx, ictx, ccache));
+#else
+	K5BAIL(krb5_init_creds_get_creds(ctx, ictx, &creds));
+	K5BAIL(krb5_cc_initialize(ctx, ccache, princ));
+	K5BAIL(krb5_cc_store_cred(ctx, ccache, &creds));
+#endif
 
 done:
 	if (ictx)
@@ -1004,6 +1019,10 @@ done:
 
 	if (ccache)
 		krb5_cc_close(ctx, ccache);
+
+#ifdef HAVE_MIT
+	krb5_free_cred_contents(ctx, &creds);
+#endif
 
 	if (princ)
 		krb5_free_principal(ctx, princ);
@@ -1040,6 +1059,11 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 	char			 croakstr[2048] = "";
 	char			*rndktpart = NULL;
 	char			 tmp[256];
+#ifdef HAVE_MIT
+	krb5_creds		 creds;
+
+	memset(&creds, 0, sizeof(creds));
+#endif
 
 	/*
 	 * rndktpart isn't a passwd but rather a random string we use in
@@ -1193,7 +1217,13 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 		goto done;
 	}
 
+#ifdef HAVE_HEIMDAL
 	K5BAIL(krb5_init_creds_store(ctx, ictx, ccache));
+#else
+	K5BAIL(krb5_init_creds_get_creds(ctx, ictx, &creds));
+	K5BAIL(krb5_cc_initialize(ctx, ccache, princ));
+	K5BAIL(krb5_cc_store_cred(ctx, ccache, &creds));
+#endif
 
 done:
 	free(rndktpart);
@@ -1231,6 +1261,10 @@ done:
 
 	if (princ)
 		krb5_free_principal(ctx, princ);
+
+#ifdef HAVE_MIT
+	krb5_free_cred_contents(ctx, &creds);
+#endif
 
 	if (ret)
 		croak("%s", croakstr);
