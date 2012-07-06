@@ -63,7 +63,11 @@ if ($HAVE eq '-DHAVE_MIT') {
 $args{CCFLAGS}	= $Config{ccflags} . " " . $HAVE;
 $args{LIBS}	= "-L${KRB5DIR}/lib -Wl,-R${KRB5DIR}/lib ";
 
-$args{LIBS} .= "-lkrb5 -lkadm5srv";
+$args{LIBS} .= "-lkrb5 -lkadm5srv -lm ";
+
+if ($HAVE eq '-DHAVE_MIT') {
+    $args{LIBS} .= "-lk5crypto ";
+}
 
 $args{clean} = { FILES => "C_wrap.c C.pm" };
 

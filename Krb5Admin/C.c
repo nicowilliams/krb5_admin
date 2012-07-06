@@ -29,7 +29,6 @@
 		}							\
 	} while (0)
 
-#ifdef HAVE_HEIMDAL
 #define K5BAIL(x)	do {						\
 		ret = x;						\
 		if (ret) {						\
@@ -48,9 +47,6 @@
 			goto done;					\
 		}							\
 	} while (0)
-#else
-#define K5BAIL(x)	BAIL(x, error_message(ret))
-#endif
 
 typedef	void *kadm5_handle;
 
@@ -84,7 +80,7 @@ krb5_get_kadm5_hndl(krb5_context ctx, char *dbname)
 		params.dbname = dbname;
 	}
 
-	K5BAIL(KADM5_INIT_WITH_PASSWORD(ctx, (char *)princstr, &params, &hndl));
+	K5BAIL(KADM5_INIT_WITH_PASSWORD(ctx, princstr, &params, &hndl));
 
 done:
 	if (ret)
@@ -982,6 +978,11 @@ kinit_anonymous(krb5_context ctx, char *realm, char *ccname)
 	krb5_principal		 princ = NULL;
 	int			 cred_allocated = 0;
 	char			 croakstr[2048] = "";
+#ifdef HAVE_MIT
+	krb5_creds		 creds;
+
+	memset(&creds, 0, sizeof(creds));
+#endif
 
 	if (ccname)
 		K5BAIL(krb5_cc_resolve(ctx, ccname, &ccache));
@@ -991,17 +992,28 @@ kinit_anonymous(krb5_context ctx, char *realm, char *ccname)
 	K5BAIL(krb5_get_init_creds_opt_alloc(ctx, &opt));
 
 	krb5_get_init_creds_opt_set_anonymous(opt, 1);
+#ifdef HAVE_HEIMDAL
 	K5BAIL(krb5_make_principal(ctx, &princ, realm,
 	    KRB5_WELLKNOWN_NAME, KRB5_ANON_NAME, NULL));
 	krb5_principal_set_type(ctx, princ, KRB5_NT_WELLKNOWN);
 	K5BAIL(krb5_get_init_creds_opt_set_pkinit(ctx, opt, princ,
 	    NULL, NULL, NULL, NULL, 4, NULL, NULL, NULL));
+#else
+	K5BAIL(krb5_copy_principal(ctx, krb5_anonymous_principal(), &princ));
+	krb5_get_init_creds_opt_set_anonymous(opt, 1);
+#endif
 
 	krb5_get_init_creds_opt_set_tkt_life(opt, 15 * 60);
 
 	K5BAIL(krb5_init_creds_init(ctx, princ, NULL, NULL, 0, opt, &ictx));
 	K5BAIL(krb5_init_creds_get(ctx, ictx));
+#ifdef HAVE_HEIMDAL
 	K5BAIL(krb5_init_creds_store(ctx, ictx, ccache));
+#else
+	K5BAIL(krb5_init_creds_get_creds(ctx, ictx, &creds));
+	K5BAIL(krb5_cc_initialize(ctx, ccache, princ));
+	K5BAIL(krb5_cc_store_cred(ctx, ccache, &creds));
+#endif
 
 done:
 	if (ictx)
@@ -1012,6 +1024,10 @@ done:
 
 	if (ccache)
 		krb5_cc_close(ctx, ccache);
+
+#ifdef HAVE_MIT
+	krb5_free_cred_contents(ctx, &creds);
+#endif
 
 	if (princ)
 		krb5_free_principal(ctx, princ);
@@ -1048,6 +1064,11 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 	char			 croakstr[2048] = "";
 	char			*rndktpart = NULL;
 	char			 tmp[256];
+#ifdef HAVE_MIT
+	krb5_creds		 creds;
+
+	memset(&creds, 0, sizeof(creds));
+#endif
 
 	/*
 	 * rndktpart isn't a passwd but rather a random string we use in
@@ -1172,7 +1193,6 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 		/* We store the error message the first time as it's useful */
 
 		if (!croakstr[0]) {
-#ifdef HAVE_HEIMDAL
 			const char	*tmp;
 
 			tmp = krb5_get_error_message(ctx, ret);
@@ -1184,10 +1204,6 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 				snprintf(croakstr, sizeof(croakstr),
 				    "%s: unknown error", "kinit_kt");
 			}
-#else
-			snprintf(croakstr, sizeof(croakstr), "%s: %s",
-			    "kinit_kt", error_message(ret));
-#endif
 		}
 
 		krb5_init_creds_free(ctx, ictx);
@@ -1201,7 +1217,13 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 		goto done;
 	}
 
+#ifdef HAVE_HEIMDAL
 	K5BAIL(krb5_init_creds_store(ctx, ictx, ccache));
+#else
+	K5BAIL(krb5_init_creds_get_creds(ctx, ictx, &creds));
+	K5BAIL(krb5_cc_initialize(ctx, ccache, princ));
+	K5BAIL(krb5_cc_store_cred(ctx, ccache, &creds));
+#endif
 
 done:
 	free(rndktpart);
@@ -1239,6 +1261,10 @@ done:
 
 	if (princ)
 		krb5_free_principal(ctx, princ);
+
+#ifdef HAVE_MIT
+	krb5_free_cred_contents(ctx, &creds);
+#endif
 
 	if (ret)
 		croak("%s", croakstr);
@@ -1530,3 +1556,17 @@ init_kdb(krb5_context ctx, kadm5_handle hndl)
 	croak("init_kdb is not implemented for MIT Kerberos");
 }
 #endif
+
+krb5_error_code
+string_to_key(krb5_context ctx, krb5_enctype enctype, const char *password,
+		   krb5_principal princ, krb5_keyblock *key)
+{
+#ifdef HAVE_HEIMDAL
+    return krb5_string_to_key(ctx, enctype, password, princ, key);
+#else
+    krb5_data pwdata;
+    pwdata.length = strlen(password);
+    pwdata.data = (char *)password;
+    return krb5_c_string_to_key(ctx, enctype, &pwdata, NULL/*no salt*/, key);
+#endif
+}

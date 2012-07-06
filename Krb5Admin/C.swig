@@ -89,7 +89,6 @@
 
 %typemap(out) krb5_error_code {
 	if ($1) {
-#ifdef HAVE_HEIMDAL 
 		krb5_error_code	 ret = $1;
 		krb5_context	 nullctx = 0;
 		char		 croakstr[2048] = "";
@@ -104,9 +103,6 @@
 			"unknown error: %ld", (long)ret);
 		}
 		croak(croakstr);
-#else
-		croak(error_message($1));
-#endif
 	}
 }
 
@@ -433,7 +429,6 @@ done:
 	if (ctx)
 		krb5_free_context(ctx);
 	if (ret) {
-#ifdef HAVE_HEIMDAL 
 		krb5_context	 nullctx = 0;
 		char		 croakstr[2048] = "";
 		const char	*tmp; 
@@ -447,9 +442,6 @@ done:
 			"unknown error: %ld", (long)ret);
 		}
 		croak(croakstr);
-#else
-		croak(error_message(ret));
-#endif
 	}
 }
 
