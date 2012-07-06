@@ -1522,3 +1522,17 @@ init_kdb(krb5_context ctx, kadm5_handle hndl)
 	croak("init_kdb is not implemented for MIT Kerberos");
 }
 #endif
+
+krb5_error_code
+string_to_key(krb5_context ctx, krb5_enctype enctype, const char *password,
+		   krb5_principal princ, krb5_keyblock *key)
+{
+#ifdef HAVE_HEIMDAL
+    return krb5_string_to_key(ctx, enctype, password, princ, key);
+#else
+    krb5_data pwdata;
+    pwdata.length = strlen(password);
+    pwdata.data = (char *)password;
+    return krb5_c_string_to_key(ctx, enctype, &pwdata, NULL/*no salt*/, key);
+#endif
+}
