@@ -988,15 +988,16 @@ kinit_anonymous(krb5_context ctx, char *realm, char *ccname)
 	K5BAIL(krb5_get_init_creds_opt_alloc(ctx, &opt));
 
 	krb5_get_init_creds_opt_set_anonymous(opt, 1);
+#ifdef HAVE_HEIMDAL
 	K5BAIL(krb5_make_principal(ctx, &princ, realm,
 	    KRB5_WELLKNOWN_NAME, KRB5_ANON_NAME, NULL));
-#ifdef HAVE_HEIMDAL
 	krb5_principal_set_type(ctx, princ, KRB5_NT_WELLKNOWN);
-#else
-	krb5_princ_type(context, princ) = KRB5_NT_WELLKNOWN;
-#endif
 	K5BAIL(krb5_get_init_creds_opt_set_pkinit(ctx, opt, princ,
 	    NULL, NULL, NULL, NULL, 4, NULL, NULL, NULL));
+#else
+	K5BAIL(krb5_copy_principal(ctx, krb5_anonymous_principal(), &princ));
+	krb5_get_init_creds_opt_set_anonymous(opt, 1);
+#endif
 
 	krb5_get_init_creds_opt_set_tkt_life(opt, 15 * 60);
 
