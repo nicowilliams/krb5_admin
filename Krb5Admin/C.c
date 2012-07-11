@@ -29,7 +29,6 @@
 		}							\
 	} while (0)
 
-#ifdef HAVE_HEIMDAL
 #define K5BAIL(x)	do {						\
 		ret = x;						\
 		if (ret) {						\
@@ -48,9 +47,6 @@
 			goto done;					\
 		}							\
 	} while (0)
-#else
-#define K5BAIL(x)	BAIL(x, error_message(ret))
-#endif
 
 typedef	void *kadm5_handle;
 
@@ -1189,7 +1185,6 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 		/* We store the error message the first time as it's useful */
 
 		if (!croakstr[0]) {
-#ifdef HAVE_HEIMDAL
 			const char	*tmp;
 
 			tmp = krb5_get_error_message(ctx, ret);
@@ -1201,10 +1196,6 @@ kinit_kt(krb5_context ctx, char *princstr, char *ktname, char *ccname)
 				snprintf(croakstr, sizeof(croakstr),
 				    "%s: unknown error", "kinit_kt");
 			}
-#else
-			snprintf(croakstr, sizeof(croakstr), "%s: %s",
-			    "kinit_kt", error_message(ret));
-#endif
 		}
 
 		krb5_init_creds_free(ctx, ictx);
