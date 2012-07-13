@@ -128,6 +128,10 @@ char	 *krb5_get_realm(krb5_context);
 char	**krb5_list_princs(krb5_context, kadm5_handle, char *);
 char	**krb5_list_pols(krb5_context, kadm5_handle, char *);
 
+krb5_keyblock string_to_key(krb5_context, krb5_enctype, const char *,
+			    krb5_principal);
+
+
 void	  init_store_creds(krb5_context, char *, krb5_creds *);
 
 krb5_error_code		 init_kdb(krb5_context, kadm5_handle);

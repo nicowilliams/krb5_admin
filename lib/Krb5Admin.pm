@@ -68,7 +68,7 @@ sub genkeys_from_passwd {
 	my @keys;
 
 	for my $etype (@etypes) {
-		my $key = Krb5Admin::C::krb5_string_to_key($ctx, $etype,
+		my $key = Krb5Admin::C::string_to_key($ctx, $etype,
 		    $passwd, $princ);
 
 		$key->{princ} = $princ;
