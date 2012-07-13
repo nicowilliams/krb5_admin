@@ -507,6 +507,9 @@ krb5_createkey(krb5_context ctx, kadm5_handle hndl, char *in)
 	/*
 	 * XXXrcd: for now, hardcode AES, DES3 and RC4, we'll take this
 	 *         out later, when we can update the configuration.
+	 *
+	 *         We should set supported_enctypes to avoid having to
+	 *         do this.
 	 */
 	enctypes[0].ks_enctype  = ENCTYPE_AES256_CTS_HMAC_SHA1_96;
 	enctypes[0].ks_salttype = 0;
@@ -519,6 +522,10 @@ krb5_createkey(krb5_context ctx, kadm5_handle hndl, char *in)
 
 	K5BAIL(kadm5_randkey_principal_3(hndl, dprinc.principal, 0,
 	    4, enctypes, NULL, NULL));
+
+	/* MIT's kadm5_create_princ() does NOT set a default policy */
+	dprinc.policy = "default";
+	K5BAIL(kadm5_modify_principal(hndl, &dprinc, KADM5_POLICY));
 #else
 	K5BAIL(kadm5_randkey_principal_3(hndl, dprinc.principal, 0,
 	    0, 0, NULL, NULL));
@@ -1553,20 +1560,33 @@ krb5_error_code
 init_kdb(krb5_context ctx, kadm5_handle hndl)
 {
 
-	croak("init_kdb is not implemented for MIT Kerberos");
+	/*
+	 * This is only used by tests, and we now have a KDB in git for
+	 * this, so no need to do anything here.  We should do the same
+	 * for Heimdal.
+	 */
+	return 0;
 }
 #endif
 
-krb5_error_code
+krb5_keyblock
 string_to_key(krb5_context ctx, krb5_enctype enctype, const char *password,
-		   krb5_principal princ, krb5_keyblock *key)
+	      krb5_principal princ)
 {
+	krb5_error_code		ret;
+	char			croakstr[2048] = "";
+	krb5_keyblock		k;
+
+	memset(&k, 0, sizeof(k));
+
 #ifdef HAVE_HEIMDAL
-    return krb5_string_to_key(ctx, enctype, password, princ, key);
+	K5BAIL(krb5_string_to_key(ctx, enctype, password, princ, &k));
 #else
-    krb5_data pwdata;
-    pwdata.length = strlen(password);
-    pwdata.data = (char *)password;
-    return krb5_c_string_to_key(ctx, enctype, &pwdata, NULL/*no salt*/, key);
+	krb5_data pwdata;
+	pwdata.length = strlen(password);
+	pwdata.data = (char *)password;
+	K5BAIL(krb5_c_string_to_key(ctx, enctype, &pwdata, NULL/*no salt*/, &k));
 #endif
+done:
+	return k; /* XXX leak */
 }
