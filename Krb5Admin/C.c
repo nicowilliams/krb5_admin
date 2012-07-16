@@ -1538,9 +1538,6 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 	char			 tmp[256];
 	char			 croakstr[2048] = "";
 
-	/* XXX Not yet */
-	croak("mint_ticket is not implemented for MIT Kerberos");
-
 	memset(&dprinc, 0, sizeof (dprinc));
 	memset(&kte, 0, sizeof (kte));
 	kte.magic = KV5M_KEYTAB_ENTRY;
