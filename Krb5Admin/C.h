@@ -44,7 +44,7 @@
 #define	KEYBLOCK_SET_MAGIC(k)	((k).magic = KV5M_KEYBLOCK)
 
 #define CREDS_MAGIC(c)		((c).magic)
-#define CREDS_SET_MAGIC(c)	((c).magic) = KV5M_CREDS)
+#define CREDS_SET_MAGIC(c)	(((c).magic) = KV5M_CREDS)
 #define CREDS_KEYBLOCK(c)	((c).keyblock)
 #define CREDS_FLAGS(c)		((c).ticket_flags)
 
@@ -128,6 +128,8 @@ char	 *krb5_get_realm(krb5_context);
 char	**krb5_list_princs(krb5_context, kadm5_handle, char *);
 char	**krb5_list_pols(krb5_context, kadm5_handle, char *);
 
+krb5_enctype	*get_as_enctypes(krb5_context ctx);
+
 krb5_keyblock string_to_key(krb5_context, krb5_enctype, const char *,
 			    krb5_principal);
 
@@ -136,7 +138,7 @@ void	  init_store_creds(krb5_context, char *, krb5_creds *);
 
 krb5_error_code		 init_kdb(krb5_context, kadm5_handle);
 krb5_creds		*mint_ticket(krb5_context, kadm5_handle, char *, int,
-				     int);
+				     int, krb5_enctype *);
 krb5_keyblock		 get_kte(krb5_context, char *, char *);
 krb5_keyblock		 krb5_make_a_key(krb5_context, krb5_enctype);
 kadm5_principal_ent_rec	 krb5_query_princ(krb5_context, kadm5_handle, char *);
@@ -160,3 +162,5 @@ krb5_error_code krb5_string_to_key(krb5_context, krb5_enctype, const char *,
 
 char 	**curve25519_pass1(krb5_context);
 char 	 *curve25519_pass2(krb5_context, char *, char *);
+
+void print_enctypes(krb5_context, krb5_enctype *);

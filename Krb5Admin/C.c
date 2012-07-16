@@ -406,6 +406,7 @@ krb5_getkey(krb5_context ctx, kadm5_handle hndl, char *in)
 	kadm5_config_params	 params;
 	kadm5_ret_t		 ret;
 	int			 i;
+	int			 des_done = 0;
 	char			 croakstr[2048] = "";
 	key			 k;
 	key			 ok = NULL;
@@ -433,12 +434,15 @@ krb5_getkey(krb5_context ctx, kadm5_handle hndl, char *in)
 		 * keys with invalid encryption types.
 		 */
 
-#if 0
-		if (kd->key_data_type[0] == ENCTYPE_NULL ||
-		    (des_done && kd->key_data_type[0] == ENCTYPE_DES_CBC_CRC))
+		if (kd->key_data_type[0] == ENCTYPE_NULL)
+		    continue;
+		if (kd->key_data_type[0] == ENCTYPE_DES_CBC_CRC ||
+		    kd->key_data_type[0] == ENCTYPE_DES_CBC_MD5 ||
+		    kd->key_data_type[0] == ENCTYPE_DES_CBC_MD4) {
+		    if (des_done)
 			continue;
-		des_done = 1;
-#endif
+		    des_done = 1;
+		}
 
 		k->princ = in;
 		k->timestamp = dprinc.last_pwd_change;
@@ -916,6 +920,23 @@ done:
 	return realm;
 }
 
+krb5_enctype *
+get_as_enctypes(krb5_context ctx)
+{
+	krb5_error_code	 ret;
+	krb5_enctype	*enctypes = NULL;
+	char		 croakstr[2048] = "";
+
+#ifdef HAVE_HEIMDAL
+	K5BAIL(krb5_get_default_in_tkt_etypes(ctx, KRB5_PDU_AS_REQUEST, &enctypes));
+#else
+	K5BAIL(krb5_get_default_in_tkt_ktypes(ctx, &enctypes));
+#endif
+
+done:
+	return enctypes;
+}
+
 char **
 krb5_get_kdcs(krb5_context ctx, char *realm)
 {
@@ -1384,6 +1405,29 @@ done:
 		croak("%s", croakstr);
 }
 
+void
+print_enctypes(krb5_context ctx, krb5_enctype *etypes)
+{
+	krb5_error_code	 ret;
+	krb5_enctype	*e;
+#ifdef HAVE_HEIMDAL
+	char		*str = NULL;
+#else
+	char		 buf[64];
+#endif
+
+	for (e=etypes; *e; e++) {
+#ifdef HAVE_HEIMDAL
+		ret = krb5_enctype_to_string(NULL, *e, &str);
+		fprintf(stderr, "got etype: %d, %s\n", *e, str);
+		free(str);
+#else
+		ret = krb5_enctype_to_name(*e, TRUE, buf, sizeof (buf));
+		fprintf(stderr, "got etype: %d, %s\n", *e, buf);
+#endif
+	}
+}
+
 #ifdef HAVE_HEIMDAL
 
 #undef warn		/* Conflict between Perl and <err.h> via <hdb.h> */
@@ -1411,7 +1455,7 @@ done:
 
 krb5_creds *
 mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
-	    int renew_till)
+	    int renew_till, krb5_enctype *enctypes)
 {
 	Ticket			 t;
 	EncTicketPart		 et;
@@ -1465,6 +1509,7 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 	krb5_timeofday(ctx, &now);	/* XXXrcd: can't fail? */
 
 	et.flags.initial = 1;
+	/* XXX Use enctypes to pick session key enctype */
 	K5BAIL(krb5_generate_random_keyblock(ctx, 17, &et.key));
 	copy_PrincipalName(&client->name, &et.cname);
 	copy_Realm(&client->realm, &et.crealm);
@@ -1528,10 +1573,84 @@ done:
 
 krb5_creds *
 mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
-	    int renew_till)
+	    int renew_till, krb5_enctype *enctypes)
 {
+	krb5_error_code		 ret;
+	kadm5_principal_ent_rec	 dprinc;
+	krb5_principal		 client = NULL;
+	krb5_creds		*creds = NULL;
+	krb5_keytab		 kt = NULL;
+	krb5_keytab_entry	 kte;
+	krb5_get_init_creds_opt	*gic_opt = NULL;
+	size_t			 i, nenctypes;
+	char			*rndktpart = NULL;
+	char			 tmp[256];
+	char			 croakstr[2048] = "";
 
-	croak("mint_ticket is not implemented for MIT Kerberos");
+	memset(&dprinc, 0, sizeof (dprinc));
+	memset(&kte, 0, sizeof (kte));
+	kte.magic = KV5M_KEYTAB_ENTRY;
+	kte.timestamp = 1; /* any time will do */
+
+	K5BAIL(krb5_parse_name(ctx, princ, &client));
+	kte.principal = client;
+
+	/* This keytab will get the decrypted keys from the KDB entry */
+	rndktpart = random_passwd(ctx, 25);
+	if (!rndktpart)
+		BAIL(ENOMEM, "generating MEMORY keytab name");
+	snprintf(tmp, sizeof(tmp), "MEMORY:%s", rndktpart);
+	K5BAIL(krb5_kt_resolve(ctx, tmp, &kt));
+
+	K5BAIL(kadm5_get_principal(hndl, client, &dprinc, 
+	    KADM5_PRINCIPAL_NORMAL_MASK | KADM5_KEY_DATA));
+
+	/* Add all the keys from the KDB into the MEMORY keytab */
+	for (i = 0; dprinc.n_key_data > 0 && i < dprinc.n_key_data; i++) {
+		krb5_key_data	*kd = &dprinc.key_data[i];
+
+		kte.vno = kd->key_data_kvno;
+
+		/*
+		 * We might be missing an old master key, so don't
+		 * K5BAIL() here.
+		 */
+		ret = kadm5_decrypt_key(hndl, &dprinc, kd->key_data_type[0],
+		    -1 /*salt*/, kd->key_data_kvno, &kte.key, NULL, NULL);
+		if (ret)
+			continue;
+
+		K5BAIL(krb5_kt_add_entry(ctx, kt, &kte));
+
+		krb5_free_keyblock_contents(ctx, &kte.key);
+		memset(&kte.key, 0, sizeof (kte.key));
+	}
+
+	/* Now use krb5_get_init_creds_keytab() */
+	K5BAIL(krb5_get_init_creds_opt_alloc(ctx, &gic_opt));
+	krb5_get_init_creds_opt_set_forwardable(gic_opt, 0);
+	krb5_get_init_creds_opt_set_proxiable(gic_opt, 0);
+	for (nenctypes = 0; enctypes && enctypes[nenctypes]; nenctypes++)
+		;
+	krb5_get_init_creds_opt_set_etype_list(gic_opt, enctypes, nenctypes);
+
+	creds = calloc(1, sizeof (*creds));
+	if (!creds)
+		BAIL(ENOMEM, "allocating krb5_creds");
+	K5BAIL(krb5_get_init_creds_keytab(ctx, creds, client, kt, 0,
+	    NULL/*krbtgt*/, gic_opt));
+
+done:
+	kte.principal = NULL;
+	krb5_free_keytab_entry_contents(ctx, &kte);
+	krb5_get_init_creds_opt_free(ctx, gic_opt);
+	kadm5_free_principal_ent(hndl, &dprinc);
+	if (kt)
+		krb5_kt_close(ctx, kt);
+	if (ret)
+		croak("%s", croakstr);
+
+	return creds;
 }
 
 #endif

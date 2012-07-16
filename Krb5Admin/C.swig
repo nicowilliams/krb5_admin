@@ -496,13 +496,13 @@ done:
 
 	K5BAIL(krb5_init_context(&ctx));
 
-	creds = malloc(sizeof(*creds));
+	creds = calloc(1, sizeof(*creds));
 	if (!creds) {
 		ret = ENOMEM;
 		goto done;
 	}
 
-	memset(creds, 0x0, sizeof(*creds));
+	CREDS_SET_MAGIC(*creds);
 
 	HV_FETCH_INTO(hv, tmp, "client", SvPV_nolen);
 	K5BAIL(krb5_parse_name(ctx, tmp, &creds->client));
@@ -606,8 +606,6 @@ done:
 	free($2);
 }
 
-#ifdef HAVE_HEIMDAL
-
 %typemap(out) krb5_creds * {
 	krb5_context	 ctx;
 	HV		*hv = newHV();
@@ -631,9 +629,11 @@ done:
 	free(tmp);
 	tmp = NULL;
 
-	HV_STORE_IV_F(hvsession, "enctype", KEYBLOCK_ENCTYPE(creds->session));
-	HV_STORE_PVN_LEN_F(hvsession, "key", KEYBLOCK_CONTENTS(creds->session),
-	    KEYBLOCK_CONTENT_LEN(creds->session));
+	HV_STORE_IV_F(hvsession, "enctype",
+	    KEYBLOCK_ENCTYPE(CREDS_KEYBLOCK(*creds)));
+	HV_STORE_PVN_LEN_F(hvsession, "key",
+	    KEYBLOCK_CONTENTS(CREDS_KEYBLOCK(*creds)),
+	    KEYBLOCK_CONTENT_LEN(CREDS_KEYBLOCK(*creds)));
 
 	hv_store(hv, "keyblock", 8, newRV_noinc((SV *)hvsession), 0);
 
@@ -642,20 +642,20 @@ done:
 	HV_STORE_IV(hv, (creds->times), endtime);
 	HV_STORE_IV(hv, (creds->times), renew_till);
 
-	HV_STORE_IV_F(hv, "flags", creds->flags.i);
+	HV_STORE_IV_F(hv, "flags", CREDS_FLAGS(*creds));
 
 	HV_STORE_PVN_LEN_F(hv, "ticket", creds->ticket.data,
 	    creds->ticket.length);
 
 done:
 	/* XXXrcd: free ctx.  mondo memory leak... */
+	/* XXX Free the creds */
 	if (ret)
 		croak("%s", croakstr);
 
 	$result = sv_2mortal(newRV_noinc((SV*)hv));
 	argvi++;
 }
-#endif
 
 #if 0
 %typemap(out) char ** {
@@ -695,5 +695,116 @@ package _p_krb5_context; sub DESTROY {Krb5Admin::C::my_free_ctx(@_)}
 package _p_kadm5_handle; sub DESTROY {Krb5Admin::C::kadm5_destroy(@_)}
 
 %}
+%typemap(in) krb5_enctype * {
+	AV			 *av;
+	SV			**sv;
+	krb5_enctype		 *enctypes;
+	krb5_error_code		  ret;
+	size_t			  nenctypes;
+	size_t			  i;
+	char			 *s;
+
+	if (!SvROK($input) || SvTYPE(SvRV($input)) != SVt_PVAV)
+		croak("Argument $argnum is not an array ref.");
+	av = (AV*)SvRV($input);
+	nenctypes = av_len(av) + 1;
+	enctypes = calloc(nenctypes, sizeof(*enctypes));
+
+	for (i=0; i < nenctypes; i++) {
+		sv = av_fetch(av, i, 0);
+		if (!SvOK(*sv)) {
+			free(enctypes);
+			croak("Argument $argnum contains a list element %d "
+			    "that is not a scalar.", i);
+		}
+		s = SvPV_nolen(*sv);
+
+		ret = STRING_TO_ENCTYPE(s, &enctypes[i]);
+		if (ret)
+			enctypes[i] = atoi(s);
+
+		if (enctypes[i] == 0) {
+			free(enctypes);
+			croak("unrecognised enctype \"%s\"", s);
+		}
+
+		if (!krb5_c_valid_enctype(enctypes[i])) {
+			free(enctypes);
+			croak("invalid enctype \"%s\".", s);
+		}
+	}
+
+	$1 = enctypes;
+}
+%typemap(freearg) krb5_enctype * {
+	free($1);
+}
+
+%typemap(out) krb5_enctype * {
+	krb5_error_code		  ret;
+	krb5_enctype e;
+	size_t i = 0, len = 0;
+#ifdef HAVE_HEIMDAL
+	char			*str;
+#else
+	char			 buf[64];
+#endif
+	char			 croakstr[256] = "";
+
+	/* Figure out how many elements we have */
+	while ($1 && $1[len]) {
+		len++;
+	}
+
+	for (i = 0; i < len ; i++) {
+		e = $1[i];
+		EXTEND(sp, 1);
+
+#ifdef HAVE_HEIMDAL
+		ret = krb5_enctype_to_string(NULL, e, &str);
+		if (ret)
+			croak("%s", croakstr);
+		$result = sv_2mortal(newSVpv(str, 0));
+		free(str);
+#else
+		ret = krb5_enctype_to_name(e, TRUE, buf, sizeof (buf));
+		if (ret)
+			croak("%s", croakstr);
+		$result = sv_2mortal(newSVpv(buf, 0));
+#endif
+		argvi++;
+	};
+}
+
+#ifndef NOTYET
+/* XXX Not needed, not used, just here to help me along -Nico */
+%typemap(out) krb5_enctype {
+	krb5_enctype             enctype;
+	krb5_error_code		 ret;
+#ifdef HAVE_HEIMDAL
+	char			*str;
+#else
+	char			 buf[64];
+#endif
+	char			 croakstr[256] = "";
+
+	enctype = $1;
+	EXTEND(sp, 1);
+
+#ifdef HAVE_HEIMDAL
+	ret = krb5_enctype_to_string(NULL, enctype, &str);
+	if (ret)
+		croak("%s", croakstr);
+	$result = sv_2mortal(newSVpv(str, 0));
+	free(str);
+#else
+	ret = krb5_enctype_to_string(enctype, buf, sizeof (buf));
+	if (ret)
+		croak("%s", croakstr);
+	$result = sv_2mortal(newSVpv(buf, 0));
+#endif
+	argvi++;
+}
+#endif
 
 %include C.h

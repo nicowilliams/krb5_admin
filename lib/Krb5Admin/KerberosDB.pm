@@ -1501,7 +1501,7 @@ sub query_ticket {
 }
 
 sub fetch_tickets {
-	my ($self, $realm, $host) = @_;
+	my ($self, $realm, $enctypes, $host) = @_;
 	my $ctx = $self->{ctx};
 	my $hndl = $self->{hndl};
 
@@ -1526,7 +1526,7 @@ sub fetch_tickets {
 	# XXXrcd: make configurable...
 	return { map {
 		$_ => Krb5Admin::C::mint_ticket($ctx, $hndl, $_, 7 * 3600 * 24,
-		    0);
+		    0, $enctypes);
 	} @$tix };
 }
 

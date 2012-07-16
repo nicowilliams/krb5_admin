@@ -104,7 +104,8 @@ sub fetch {
 			$kmdb = Krb5Admin::Client->new($clnt, {realm=>$realm});
 		}
 
-		my $tix = $kmdb->fetch_tickets($realm);
+		my @enctypes = get_as_enctypes($ctx);
+		my $tix = $kmdb->fetch_tickets($realm, \@enctypes);
 
 		for my $princstr (keys %$tix) {
 			save_tickets($princstr, $tix);
