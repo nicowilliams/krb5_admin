@@ -1,5 +1,10 @@
 #!/usr/pkg/bin/perl
 
+use MSDW::Version qw(
+        DBI                     1.615
+	DBD-SQLite              1.33
+);
+
 use Test::More tests => 44;
 
 use Krb5Admin::C;
@@ -30,6 +35,9 @@ sub compare_keys {
 			$rhs{$k->{enctype} . ":" . $k->{kvno}} = 1;
 		}
 	}
+
+	#diag(Dumper(\%lhs));
+	#diag(Dumper(\%rhs));
 
 	is_deeply(\%lhs, \%rhs, $testname);
 }
@@ -93,7 +101,17 @@ testObjC("create_user", $kmdb, [$p], 'create_user', $uprinc, $p);
 #
 # Now, we test to ensure that the princs are what we expect them to be.
 
-testObjC("list", $kmdb, [$uprinc, $sprinc], 'list');
+my $list = [ 'K/M@TEST.REALM',
+    'kadmin/admin@TEST.REALM',
+    'kadmin/changepw@TEST.REALM',
+    'kadmin/history@TEST.REALM',
+    'kadmin/np334c1n7@TEST.REALM',
+    'krbtgt/TEST.REALM@TEST.REALM',
+    $sprinc,
+    $uprinc
+];
+
+testObjC("list", $kmdb, $list, 'list');
 
 my $result;
 
@@ -103,6 +121,7 @@ ok($result->{policy} eq 'default', qq{user policy is ``default''});
 ok($result->{principal} eq $uprinc, qq{query returned correct princ});
 compare_princ_to_attrs($result, [qw/+requires_preauth -allow_svr +needchange/],
     "user has correct attributes 1");
+diag(Dumper($result));
 compare_keys($result, [
 		{enctype=>18,kvno=>1},
 		{enctype=>16,kvno=>1},
@@ -111,6 +130,7 @@ compare_keys($result, [
 
 $result = $kmdb->query('service');
 
+diag(Dumper($result));
 ok($result->{policy} eq 'default', qq{service policy is ``default''});
 ok($result->{principal} eq $sprinc, qq{query returned correct princ});
 compare_princ_to_attrs($result, [], "service has correct attributes");

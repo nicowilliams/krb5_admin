@@ -1,5 +1,10 @@
 #!/usr/pkg/bin/perl
 
+use MSDW::Version qw(
+        DBI                     1.615
+	DBD-SQLite              1.33
+);
+
 use Test::More tests => 36;
 
 use Krb5Admin::KerberosDB;
@@ -26,6 +31,8 @@ sub testObjC {
 	}
 }
 
+$ENV{'KRB5_CONFIG'} = './t/krb5.conf';
+
 my $kmdb;
 
 $kmdb = Krb5Admin::KerberosDB->new(
@@ -39,8 +46,11 @@ $kmdb = Krb5Admin::KerberosDB->new(
 #
 # XXXrcd: This is destructive!
 
+diag(123);
 $kmdb->drop_db();
+diag(456);
 $kmdb->init_db();
+diag(789);
 
 my $proid1 = 'proid1@TEST.REALM';
 my $proid2 = 'proid2@TEST.REALM';
