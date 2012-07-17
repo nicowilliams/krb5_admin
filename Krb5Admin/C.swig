@@ -503,6 +503,7 @@ done:
 	}
 
 	memset(creds, 0x0, sizeof(*creds));
+	CREDS_SET_MAGIC(*creds);
 
 	HV_FETCH_INTO(hv, tmp, "client", SvPV_nolen);
 	K5BAIL(krb5_parse_name(ctx, tmp, &creds->client));
@@ -606,8 +607,6 @@ done:
 	free($2);
 }
 
-#ifdef HAVE_HEIMDAL
-
 %typemap(out) krb5_creds * {
 	krb5_context	 ctx;
 	HV		*hv = newHV();
@@ -631,9 +630,11 @@ done:
 	free(tmp);
 	tmp = NULL;
 
-	HV_STORE_IV_F(hvsession, "enctype", KEYBLOCK_ENCTYPE(creds->session));
-	HV_STORE_PVN_LEN_F(hvsession, "key", KEYBLOCK_CONTENTS(creds->session),
-	    KEYBLOCK_CONTENT_LEN(creds->session));
+	HV_STORE_IV_F(hvsession, "enctype",
+	    KEYBLOCK_ENCTYPE(CREDS_KEYBLOCK(*creds)));
+	HV_STORE_PVN_LEN_F(hvsession, "key",
+	    KEYBLOCK_CONTENTS(CREDS_KEYBLOCK(*creds)),
+	    KEYBLOCK_CONTENT_LEN(CREDS_KEYBLOCK(*creds)));
 
 	hv_store(hv, "keyblock", 8, newRV_noinc((SV *)hvsession), 0);
 
@@ -642,7 +643,7 @@ done:
 	HV_STORE_IV(hv, (creds->times), endtime);
 	HV_STORE_IV(hv, (creds->times), renew_till);
 
-	HV_STORE_IV_F(hv, "flags", creds->flags.i);
+	HV_STORE_IV_F(hv, "flags", CREDS_FLAGS(*creds));
 
 	HV_STORE_PVN_LEN_F(hv, "ticket", creds->ticket.data,
 	    creds->ticket.length);
@@ -655,7 +656,6 @@ done:
 	$result = sv_2mortal(newRV_noinc((SV*)hv));
 	argvi++;
 }
-#endif
 
 #if 0
 %typemap(out) char ** {

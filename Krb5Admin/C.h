@@ -44,7 +44,7 @@
 #define	KEYBLOCK_SET_MAGIC(k)	((k).magic = KV5M_KEYBLOCK)
 
 #define CREDS_MAGIC(c)		((c).magic)
-#define CREDS_SET_MAGIC(c)	((c).magic) = KV5M_CREDS)
+#define CREDS_SET_MAGIC(c)	(((c).magic) = KV5M_CREDS)
 #define CREDS_KEYBLOCK(c)	((c).keyblock)
 #define CREDS_FLAGS(c)		((c).ticket_flags)
 
