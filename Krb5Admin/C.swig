@@ -250,15 +250,20 @@ done:
 }
 
 %typemap(in) krb5_data * {
-	krb5_data	*d;
+	krb5_data	*d = NULL;
+	STRLEN		len = 0;
 
-	d = malloc(sizeof(*d));
-	/* XXXrcd: croak if error. */
-	d->length = 0;
-	d->data = NULL;
+	if (SvOK($input)) {
+		d = malloc(sizeof(*d));
+		if (!d)
+			croak("%s", strerror(errno));
+		/* XXXrcd: croak if error. */
+		d->length = 0;
+		d->data = NULL;
 
-	if (SvOK($input))
-		d->data = SvPV($input, (d->length));
+		d->data = SvPV($input, len);
+		d->length = len;
+	}
 	$1 = d;
 }
 
