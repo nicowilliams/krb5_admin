@@ -1549,7 +1549,7 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 	/* This keytab will get the decrypted keys from the KDB entry */
 	rndktpart = random_passwd(ctx, 25);
 	if (!rndktpart)
-	    BAIL(ENOMEM, "generating MEMORY keytab name");
+		BAIL(ENOMEM, "generating MEMORY keytab name");
 	snprintf(tmp, sizeof(tmp), "MEMORY:%s", rndktpart);
 	K5BAIL(krb5_kt_resolve(ctx, tmp, &kt));
 
@@ -1569,7 +1569,7 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 		ret = kadm5_decrypt_key(hndl, &dprinc, kd->key_data_type[0],
 		    -1 /*salt*/, kd->key_data_kvno, &kte.key, NULL, NULL);
 		if (ret)
-		    continue;
+			continue;
 
 		K5BAIL(krb5_kt_add_entry(ctx, kt, &kte));
 
@@ -1584,7 +1584,7 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 
 	creds = calloc(1, sizeof (*creds));
 	if (!creds)
-	    BAIL(ENOMEM, "allocating krb5_creds");
+		BAIL(ENOMEM, "allocating krb5_creds");
 	K5BAIL(krb5_get_init_creds_keytab(ctx, creds, client, kt, 0,
 	    NULL/*krbtgt*/, gic_opt));
 
@@ -1594,7 +1594,7 @@ done:
 	krb5_get_init_creds_opt_free(ctx, gic_opt);
 	kadm5_free_principal_ent(hndl, &dprinc);
 	if (kt)
-	    krb5_kt_close(ctx, kt);
+		krb5_kt_close(ctx, kt);
 	if (ret)
 		croak("%s", croakstr);
 
