@@ -912,6 +912,23 @@ done:
 	return realm;
 }
 
+krb5_enctype *
+get_tgs_enctypes(krb5_context ctx)
+{
+	krb5_error_code	 ret;
+	krb5_enctype	*enctypes = NULL;
+	char		 croakstr[2048] = "";
+
+#ifdef HAVE_HEIMDAL
+	K5BAIL(krb5_get_default_in_tkt_etypes(ctx, KRB5_PDU_TGS_REQUEST, &enctypes));
+#else
+	K5BAIL(krb5_get_tgs_ktypes(ctx, NULL, &enctypes));
+#endif
+
+done:
+	return enctypes;
+}
+
 char **
 krb5_get_kdcs(krb5_context ctx, char *realm)
 {
@@ -1407,7 +1424,7 @@ done:
 
 krb5_creds *
 mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
-	    int renew_till)
+	    int renew_till, krb5_enctype *enctypes)
 {
 	Ticket			 t;
 	EncTicketPart		 et;
@@ -1524,7 +1541,7 @@ done:
 
 krb5_creds *
 mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
-	    int renew_till)
+	    int renew_till, krb5_enctype *enctypes)
 {
 	krb5_error_code		 ret;
 	kadm5_principal_ent_rec	 dprinc;
