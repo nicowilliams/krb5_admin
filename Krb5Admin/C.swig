@@ -689,7 +689,6 @@ done:
 	argvi++;
 }
 
-#ifndef NOTYET
 %typemap(in) krb5_enctype * {
 	AV			 *av;
 	SV			**sv;
@@ -707,25 +706,35 @@ done:
 
 	for (i=0; i < nenctypes; i++) {
 		sv = av_fetch(av, i, 0);
-		if (!SvOK(*sv))
+		if (!SvOK(*sv)) {
+			free(enctypes);
 			croak("Argument $argnum contains a list element %d "
 			    "that is not a scalar.", i);
+		}
 		s = SvPV_nolen(*sv);
+
+		ret = STRING_TO_ENCTYPE(s, &enctypes[i]);
+		if (ret)
+			enctypes[i] = atoi(s);
+
+		if (enctypes[i] == 0) {
+			free(enctypes);
+			croak("unrecognised enctype \"%s\"", s);
+		}
+
+		if (!krb5_c_valid_enctype(enctypes[i])) {
+			free(enctypes);
+			croak("invalid enctype \"%s\".", s);
+		}
 	}
-
-	ret = STRING_TO_ENCTYPE(s, &enctypes[i]);
-	if (ret)
-		enctypes[i] = atoi(s);
-
-	if (enctypes[i] == 0)
-		croak("unrecognised enctype \"%s\"", s);
-
-	if (!krb5_c_valid_enctype(enctypes[i]))
-		croak("invalid enctype \"%s\".", s);
 
 	$1 = enctypes;
 }
-%typemap(argout) krb5_enctype * {
+%typemap(freearg) krb5_enctype * {
+	free($1);
+}
+
+%typemap(out) krb5_enctype * {
 	krb5_error_code		  ret;
 	krb5_enctype e;
 	size_t i = 0, len = 0;
@@ -752,7 +761,7 @@ done:
 		$result = sv_2mortal(newSVpv(str, 0));
 		free(str);
 #else
-		ret = krb5_enctype_to_string(e, buf, sizeof (buf));
+		ret = krb5_enctype_to_name(e, TRUE, buf, sizeof (buf));
 		if (ret)
 			croak("%s", croakstr);
 		$result = sv_2mortal(newSVpv(buf, 0));
@@ -760,6 +769,8 @@ done:
 		argvi++;
 	};
 }
+
+#ifndef NOTYET
 /* XXX Not needed, not used, just here to help me along -Nico */
 %typemap(out) krb5_enctype {
 	krb5_enctype             enctype;

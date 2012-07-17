@@ -128,7 +128,7 @@ char	 *krb5_get_realm(krb5_context);
 char	**krb5_list_princs(krb5_context, kadm5_handle, char *);
 char	**krb5_list_pols(krb5_context, kadm5_handle, char *);
 
-krb5_enctype	*get_tgs_enctypes(krb5_context ctx);
+krb5_enctype	*get_as_enctypes(krb5_context ctx);
 
 krb5_keyblock string_to_key(krb5_context, krb5_enctype, const char *,
 			    krb5_principal);
@@ -157,3 +157,5 @@ krb5_error_code	krb5_parse_name(krb5_context, const char *, krb5_principal *);
 
 char 	**curve25519_pass1(krb5_context);
 char 	 *curve25519_pass2(krb5_context, char *, char *);
+
+void print_enctypes(krb5_context, krb5_enctype *);

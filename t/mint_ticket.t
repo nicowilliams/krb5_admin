@@ -17,7 +17,7 @@ END {
 }
 
 my  $ctx   = Krb5Admin::C::krb5_init_context();
-my  @etypes= Krb5Admin::C::get_tgs_enctypes($ctx);
+my  @etypes= Krb5Admin::C::get_as_enctypes($ctx);
 our $hndl  = Krb5Admin::C::krb5_get_kadm5_hndl($ctx, 'db:t/test-hdb');
 our $realm = Krb5Admin::C::krb5_get_realm($ctx);
 

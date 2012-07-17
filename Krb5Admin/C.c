@@ -913,16 +913,16 @@ done:
 }
 
 krb5_enctype *
-get_tgs_enctypes(krb5_context ctx)
+get_as_enctypes(krb5_context ctx)
 {
 	krb5_error_code	 ret;
 	krb5_enctype	*enctypes = NULL;
 	char		 croakstr[2048] = "";
 
 #ifdef HAVE_HEIMDAL
-	K5BAIL(krb5_get_default_in_tkt_etypes(ctx, KRB5_PDU_TGS_REQUEST, &enctypes));
+	K5BAIL(krb5_get_default_in_tkt_etypes(ctx, KRB5_PDU_AS_REQUEST, &enctypes));
 #else
-	K5BAIL(krb5_get_tgs_ktypes(ctx, NULL, &enctypes));
+	K5BAIL(krb5_get_default_in_tkt_ktypes(ctx, &enctypes));
 #endif
 
 done:
@@ -1395,6 +1395,29 @@ init_store_creds(krb5_context ctx, char *ccname, krb5_creds *creds)
 done:
 	if (ret)
 		croak("%s", croakstr);
+}
+
+void
+print_enctypes(krb5_context ctx, krb5_enctype *etypes)
+{
+	krb5_error_code	 ret;
+	krb5_enctype	*e;
+#ifdef HAVE_HEIMDAL
+	char		*str = NULL;
+#else
+	char		 buf[64];
+#endif
+
+	for (e=etypes; *e; e++) {
+#ifdef HAVE_HEIMDAL
+		ret = krb5_enctype_to_string(NULL, *e, &str);
+		fprintf(stderr, "got etype: %d, %s\n", *e, str);
+		free(str);
+#else
+		ret = krb5_enctype_to_name(*e, TRUE, buf, sizeof (buf));
+		fprintf(stderr, "got etype: %d, %s\n", *e, buf);
+#endif
+	}
 }
 
 #ifdef HAVE_HEIMDAL
