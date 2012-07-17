@@ -1501,6 +1501,7 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 	krb5_timeofday(ctx, &now);	/* XXXrcd: can't fail? */
 
 	et.flags.initial = 1;
+	/* XXX Use enctypes to pick session key enctype */
 	K5BAIL(krb5_generate_random_keyblock(ctx, 17, &et.key));
 	copy_PrincipalName(&client->name, &et.cname);
 	copy_Realm(&client->realm, &et.crealm);
@@ -1573,7 +1574,7 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 	krb5_keytab		 kt = NULL;
 	krb5_keytab_entry	 kte;
 	krb5_get_init_creds_opt	*gic_opt = NULL;
-	size_t			 i;
+	size_t			 i, nenctypes;
 	char			*rndktpart = NULL;
 	char			 tmp[256];
 	char			 croakstr[2048] = "";
@@ -1621,6 +1622,9 @@ mint_ticket(krb5_context ctx, kadm5_handle hndl, char *princ, int lifetime,
 	K5BAIL(krb5_get_init_creds_opt_alloc(ctx, &gic_opt));
 	krb5_get_init_creds_opt_set_forwardable(gic_opt, 0);
 	krb5_get_init_creds_opt_set_proxiable(gic_opt, 0);
+	for (nenctypes = 0; enctypes && enctypes[nenctypes]; nenctypes++)
+		;
+	krb5_get_init_creds_opt_set_etype_list(gic_opt, enctypes, nenctypes);
 
 	creds = calloc(1, sizeof (*creds));
 	if (!creds)
