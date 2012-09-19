@@ -408,7 +408,7 @@ krb5_getkey(krb5_context ctx, kadm5_handle hndl, char *in)
 	krb5_principal		 princ = NULL;
 	krb5_keyblock		 kb;
 	kadm5_config_params	 params;
-	kadm5_ret_t		 ret;
+        kadm5_ret_t		 ret, ret2;
 	int			 i;
 	char			 croakstr[2048] = "";
 	key			 k;
@@ -426,18 +426,13 @@ krb5_getkey(krb5_context ctx, kadm5_handle hndl, char *in)
 		krb5_key_data	*kd = &dprinc.key_data[i];
 
 		k = calloc(sizeof(struct _key), 1);
-		if (!first)
-			first = k;
-		if (ok)
-			ok->next = k;
-		ok = k;
 
+#if 0
 		/*
 		 * Here we elide both duplicated DES keys and
 		 * keys with invalid encryption types.
 		 */
 
-#if 0
 		if (kd->key_data_type[0] == ENCTYPE_NULL ||
 		    (des_done && kd->key_data_type[0] == ENCTYPE_DES_CBC_CRC))
 			continue;
@@ -448,8 +443,20 @@ krb5_getkey(krb5_context ctx, kadm5_handle hndl, char *in)
 		k->timestamp = dprinc.last_pwd_change;
 		k->kvno = kd->key_data_kvno;
 #ifdef HAVE_MIT
-		ret = kadm5_decrypt_key(hndl, &dprinc, kd->key_data_type[0],
+		ret2 = kadm5_decrypt_key(hndl, &dprinc, kd->key_data_type[0],
 		    -1 /*salt*/, kd->key_data_kvno, &kb, NULL, NULL);
+
+                if (ret2 == KRB5_KDB_NO_PERMITTED_KEY) {
+                    free(k);
+                    continue;
+                }
+                K5BAIL(ret2);
+
+		if (!first)
+			first = k;
+		if (ok)
+			ok->next = k;
+		ok = k;
 
 		/* XXXrcd: assert that we have enough space */
 		k->enctype = kb.enctype;
